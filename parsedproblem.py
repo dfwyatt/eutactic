@@ -113,6 +113,8 @@ class ParsedProblem(Problem):
         self.print()
 
     def parse_file(self, filename, previous_files):
+        print("------------------------------------------")
+        print("Parsing", filename)
         previous_files.add(filename)
         with open(filename, 'r') as file:
             i = 1
@@ -167,15 +169,18 @@ class ParsedProblem(Problem):
                 elif parsedLine.importcommand:
                     # Import command - parse another text file at this point!
                     subfilename = parsedLine[0]
+                    # Turn it into a full path
+                    subfilepath = os.path.join(os.path.dirname(filename), subfilename)
                     # Check this is a sane file name first!
-                    if os.path.isfile(subfilename):
+                    if os.path.isfile(subfilepath):
                         # prevent infinite loops from mutual inclusion...
-                        if subfilename not in previous_files:
-                            self.parse_file(subfilename, previous_files)
+                        if subfilepath not in previous_files:
+                            self.parse_file(subfilepath, previous_files)
                             # Although this is recursive I think the pass-by-reference of previous files will cover multiple consecutive calls...
                         else:
-                            print("Error! Tried to re-import file", subfilename, " at line ",str(i))
-                     
+                            print("Error! Tried to re-import file", subfilepath, " at line ",str(i))
+                    else:
+                        print("Error! Could not import file", subfilepath, " at line ",str(i))
                  
                     
 
