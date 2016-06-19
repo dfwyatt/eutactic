@@ -1,0 +1,10 @@
+import("constants.prob")
+m_centre_kg := M_earth_kg
+r_m := earth_moon_dist_m
+m_satel_kg := M_moon_kg
+F_N = m_satel_kg * a "Newton's 3rd law"
+F_N = G * m_centre_kg * m_satel_kg /(r_m^2) "Newton's law of gravity"
+a = (omega^2) * r_m "Centripetal acceleration"
+2*pi*freq_Hz = omega
+period_s = 1/freq_Hz
+period_day = period_s/seconds_per_day

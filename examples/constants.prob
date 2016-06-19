@@ -1,0 +1,16 @@
+
+# Physical constants
+G == 6.67384e-11 #m3 kg-1 s-2
+
+# Unit converation
+days_per_year == 365.25
+hours_per_day == 24
+minutes_per_hour == 60
+seconds_per_minute == 60
+seconds_per_day == hours_per_day * minutes_per_hour * seconds_per_minute
+
+# Cosmology
+M_earth_kg == 5.972E24
+M_moon_kg == 7.3477E22
+earth_moon_dist_m == 384.4E6
+r_earth_m == 6371000

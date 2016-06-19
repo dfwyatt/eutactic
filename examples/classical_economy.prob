@@ -1,0 +1,13 @@
+p = 1 "Price level"
+w_nom = w/p "Real wage def"
+k_nom = k/p "Real rental price of capital def"
+r = i - pi "Interest rate"
+
+Q_capital = 100 "Fixed capital supply"
+k_nom_dem = 200 - Q_capital "Demand for capital"
+k_nom = k_nom_dem
+
+w_nom_dem = 200 - Q_labour "Demand for labour"
+w_nom_sup = Q_labour "Supply of labour"
+w_nom = w_nom_dem
+w_nom = w_nom_sup

@@ -1,0 +1,7 @@
+Vt = EMF - I*R_int "Cell internal resistance"
+Vt = I*R_ext "Circuit resistance"
+
+EMF := 9
+R_int := 1
+R_ext := 8 # this shouldn't cause a problem
+# Nor should this
