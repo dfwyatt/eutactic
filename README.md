@@ -9,3 +9,6 @@ Correspondingly, in Eutactic interrelationships between variables are defined as
 * Formula: x = (-b + sqrt(b^2 - 4*a*c))/(2*a)
 
 At present Eutactic is in early development, primarily focused on the solver core and a simple GUI. Long-term plans include integration with other numerical systems.
+
+## Documentation
+* [Syntax for defining .prob files](docs/problem_syntax.md)
