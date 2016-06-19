@@ -2,7 +2,7 @@
 # Physical constants
 G == 6.67384e-11 #m3 kg-1 s-2
 
-# Unit converation
+# Unit conversion
 days_per_year == 365.25
 hours_per_day == 24
 minutes_per_hour == 60
