@@ -1,4 +1,6 @@
+import csv
 import io
+import os
 import sys
 
 import numpy as np
@@ -58,6 +60,11 @@ class EquationGui(QMainWindow):
         openAction.setStatusTip('Open problem file')
         openAction.triggered.connect(self.loadProblemFromFile)
 
+        exportCSVAction = QAction(QIcon('save.png'), '&Export CSV of solutions', self)
+        exportCSVAction.setShortcut('Ctrl+E')
+        exportCSVAction.setStatusTip('Export CSV of solutions')
+        exportCSVAction.triggered.connect(self.exportSolutionsCSV)
+
         reloadProblemAction = QAction('&Reload problem', self)
         reloadProblemAction.setShortcut('Ctrl+R')
         reloadProblemAction.triggered.connect(self.loadProblem)
@@ -69,6 +76,7 @@ class EquationGui(QMainWindow):
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
         fileMenu.addAction(openAction)
+        fileMenu.addAction(exportCSVAction)
         fileMenu.addAction(quitAction)
 
         problemMenu = menubar.addMenu('&Problem')
@@ -162,8 +170,15 @@ class EquationGui(QMainWindow):
         outputWidget.setLayout(outputLayout)
         inputSplitter.addWidget(outputWidget)
 
-        # Label
-        outputLayout.addWidget(QLabel("Parser/solver output:"))
+        # Label and clear button
+        outputLabelLayout = QHBoxLayout()
+        outputLayout.addLayout(outputLabelLayout)
+
+        outputLabelLayout.addWidget(QLabel("Parser/solver output:"))
+
+        clearOutputButton = QPushButton("Clear", self)
+        outputLabelLayout.addWidget(clearOutputButton)
+        clearOutputButton.pressed.connect(self.clearOutput)
 
         # Text output from parser and solver (or anything via stdout!)
         self.outputPane = QTextEdit()
@@ -180,8 +195,15 @@ class EquationGui(QMainWindow):
 
 
         # First, a table of all the solutions that have been found
-        resultsDisplayLayout.addWidget(QLabel("Results:"))
-        # A resultsSplitter to adjust between results display and graphs
+        # Label and clear button
+        resultsDisplayLabelLayout = QHBoxLayout()
+        resultsDisplayLayout.addLayout(resultsDisplayLabelLayout)
+        resultsDisplayLabelLayout.addWidget(QLabel("Results:"))
+        clearSolutionsButton = QPushButton("Clear", self)
+        resultsDisplayLabelLayout.addWidget(clearSolutionsButton)
+        clearSolutionsButton.pressed.connect(self.clearSolutions)
+
+        # A splitter to adjust between results display and graphs
         resultsSplitter = QSplitter(Qt.Vertical)
         resultsDisplayLayout.addWidget(resultsSplitter)
         self.solnsTable = QTableWidget(self)
@@ -240,6 +262,9 @@ class EquationGui(QMainWindow):
         # Update the title bar
         self.setWindowTitle("Equation GUI - " + self.probfilename)
 
+        # Clear the stdout window
+        self.clearOutput()
+
         # Parse the file into a Problem
         self.problem = ParsedProblem(self.probfilename)
 
@@ -253,13 +278,10 @@ class EquationGui(QMainWindow):
         self.populateVarTable(self.problem.defaultContext)
         self.updateTableInputState(None)
 
-        # Reset the stored database of solutions
-        self.solutionVals = []
-        self.populateSolutionsTable()
+        # Clear the previous solutions
+        self.clearSolutions()
 
-        # Reset the graph
-        self.varPlot.setData(np.array([]), np.array([]))
-        # Set the variable lists
+        # Set the lists of variables for the graph axes
         self.varPlotXAxisMenu.clear()
         self.varPlotXAxisMenu.addItems(self.varNameList)
         self.varPlotYAxisMenu.clear()
@@ -391,11 +413,23 @@ class EquationGui(QMainWindow):
         self.varPlotWidget.setLabel('bottom', xAxisVarName) # , units='s')
         self.varPlotWidget.setLabel('left', yAxisVarName)
 
-    def populateSolutionsTable(self):
+    def clearSolutions(self):
+        # Reset the stored database of solutions
+        self.solutionVals = []
+
+        # Clear the table
+        self.resetSolutionsTable()
+
+        # Reset the graph data
+        self.varPlot.setData(np.array([]), np.array([]))
+
+    def resetSolutionsTable(self):
         # Set the table model to include all the variable names
         self.solnsTable.setColumnCount(len(self.varNameList))
-        self.solnsTable.setRowCount(0)
         self.solnsTable.setHorizontalHeaderLabels(self.varNameList)
+
+        # Clear all rows
+        self.solnsTable.setRowCount(0)
 
         self.solnsTable.resizeRowsToContents()
         self.solnsTable.resizeColumnsToContents()
@@ -411,6 +445,9 @@ class EquationGui(QMainWindow):
             valueItem.setFlags(valueItem.flags() & ~Qt.ItemIsEditable)
             self.solnsTable.setItem(len(self.solutionVals) - 1, i, valueItem)
         self.solnsTable.resizeColumnsToContents()
+
+    def clearOutput(self):
+        self.outputPane.clear()
 
     def onDrawButtonPressed(self):
         buff = io.BytesIO()
@@ -501,7 +538,16 @@ class EquationGui(QMainWindow):
         #g.write_png("problem_structure.png", prog="dot")
         g.write_png(targetFile, prog="neato")
 
-
+    def exportSolutionsCSV(self):
+        fname = QFileDialog.getSaveFileName(parent=self, caption='Export solutions as CSV', dir=os.path.splitext(self.probfilename)[0], filter="*.csv")
+        #print(fname)
+        # TODO Prompt before overwriting existing file
+        if fname[0]:
+            with open(fname[0], 'w', newline='') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=self.varNameList)
+                writer.writeheader()
+                for soln in self.solutionVals:
+                    writer.writerow(soln)
 
 if __name__=="__main__":
     # Create a Qt application
