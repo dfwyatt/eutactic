@@ -15,7 +15,6 @@ __author__ = 'David Wyatt'
 
 
 testfilename = "examples/test.prob"
-#testfilename = "storage/sdcard0/dropbox/NumInf/test.prob"
 # Parser definition
 # From http://eikke.com/pyparsing-introduction-bnf-to-code/6/index.html
 # And pyparsing's fourfn

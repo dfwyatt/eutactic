@@ -280,6 +280,8 @@ class EquationGui(QMainWindow):
 
         # Clear the previous solutions
         self.clearSolutions()
+        # Clear the previous reference context (used for providing a first-pass for numerical solutions)
+        self.refContext = False
 
         # Set the lists of variables for the graph axes
         self.varPlotXAxisMenu.clear()
@@ -358,9 +360,9 @@ class EquationGui(QMainWindow):
         # Create a new context with values from value table
         solveContext = Context()
         for i in range(self.varTable.rowCount()):
+            varName = self.varTable.item(i, 0).text()
             # Only use those variables marked as "Input"
             if self.varTable.item(i, 1).checkState() == Qt.CheckState.Checked:
-                varName = self.varTable.item(i, 0).text()
                 #varValStr = self.varTable.item(i, 1).text()
                 #if varValStr == "None":
                 #    varVal = None
@@ -371,12 +373,16 @@ class EquationGui(QMainWindow):
                     varVal = None
                 #print(str(self.exprs[varName]))
                 self.varDict[varName].setValue(varVal, solveContext)
+            else:
+                self.varDict[varName].setValue(None, solveContext)
         #print(solveContext)
         # Solve
-        self.problem.solve(solveContext)
+        self.problem.solve(solveContext, self.refContext)
         # Re-update table with values after solution
         self.storeSolutionVals(solveContext)
         #print("Solved, in theory")
+        # Store the solution context as a first-pass for future numerical solutions if necessary
+        self.refContext = solveContext
 
     def storeSolutionVals(self, context):
         # Temporarily disable events from table while we update its contents

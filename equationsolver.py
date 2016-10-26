@@ -67,11 +67,17 @@ class Problem:
         for constr in constrs:
             self.addConstr(constr)
 
-    def solve(self, context=False):
+    def solve(self, context=False, refContext=False):
+        """
+        Iteratively attempt to assign values to every undefined ScalarValue
+        Try to sequence constrs first to solve in the right order
+
+        :param context: The context to work in (defaults to the default context)
+        :param refContext: A reference context with reference values for the variables (used if numerical solution is needed, as starting points for the iteration)
+        :return: True if a solution was successfully found, else False
+        """
         print("********Solving")
         context = context or self.defaultContext
-        # Iteratively attempt to assign values to every undefined ScalarValue
-        # Try to sequence constrs first to solve in the right order
         # The sequence constraints were solved in, for future reference
         self.solveseq = []
         tempconstrlist = list(self.constrs)
@@ -112,7 +118,7 @@ class Problem:
                     # Look out for cases where we have multiple copies of the same variable in a constraint!
                     #print("Detected a constraint where there are multiple copies of the same variable:", constr.name, constr.getTextFormula(), "(Variable: " + str(undefVars[0].name), ")")
                     print("Solving \"" + constr.name + "\" numerically due to multiple occurrences of " + undefVars[0].name + "...")
-                    result = self.LSsolve([constr], context, undefVarsSet)
+                    result = self.numSolve([constr], context, undefVarsSet, refContext)
                     if not(result):
                         break
                     # Admin
@@ -136,7 +142,7 @@ class Problem:
                 print(str(len(allUndefVars)) + " remaining undefined variables:", [var.name for var in allUndefVars])
                 if numConstrs >= len(allUndefVars):
                     print("Number of remaining constraints >= number of undefined variables => try solving numerically!")
-                    result = self.LSsolve(tempconstrlist, context, allUndefVars)
+                    result = self.numSolve(tempconstrlist, context, allUndefVars, refContext)
                     if not(result):
                         print("Error solving remaining constraints numerically - giving up.")
                         return False
@@ -149,7 +155,7 @@ class Problem:
         self.sequenced = True
         return True
 
-    def LSsolve(self, constrs, context, undefVars):
+    def numSolve(self, constrs, context, undefVars, refContext = False):
         #print("++++++++++++++++++++++++")
         # Solve one or more constraints by numerical optimisation
         # The first thing is to construct f(x) from each constraint, which will be LHS - RHS
@@ -157,19 +163,42 @@ class Problem:
         print("  Formula(e) whose roots are to be found:")
         [print("  " + f_expr.getTextFormula()) for f_expr in f_exprs]
         #print("Using SciPy leastsq.")
-        # Make a list of all the undefined variables, which will be the "master" list defining the variable order
-        varList = list(undefVars)
-        # Construct an elaborate lambda expression for the function evaluation
-        dictgen = lambda x: {(entry[0], entry[1]) for entry in zip(varList, x)}
+        # First we need to define a vector of the free variables
+        # To do this, make a list of all the undefined variables, which will be the "master" list defining the variable order
+        masterVarList = list(undefVars)
+        # Now we need a function that will return values (to be set to 0) when fed a vector of variable values
+        # To start with, make a function that takes such a vector and makes it into a dictionary, linking each value with its corresponding variable
+        dictgen = lambda x: {(entry[0], entry[1]) for entry in zip(masterVarList, x)}
+        # Now make a lambda expression that is actually the objective function evaluation when given a vector of var values
         f = lambda x: [f_expr.getValue(context.extendWithValues(dictgen(x))) for f_expr in f_exprs]
         # Now the call to leastsq...
-        result = scipy.optimize.leastsq(f, np.zeros(len(varList)))
-        #print("All results from leastsq:", result) # [x, cov_x, infodict]
-        print("  Numerical result:", str(result[0]))
+        # The problem is, we need to supply a set of starting values for the iteration
+        # And if the values we supply happen to be singular values of the equation, we'll be stuck! Oh dear.
+        # result = scipy.optimize.leastsq(f, np.zeros(len(masterVarList)))
+        # As a workaround, pass in starting values which can come from e.g. the previous solution
+        if refContext:
+            undefVarRefVals = np.array([refContext.getValue(var) for var in masterVarList])
+        else:
+            undefVarRefVals = np.zeros(len(masterVarList))
+        print("Initial guess for var vals: ", list(zip([v.name for v in masterVarList], undefVarRefVals)))
+        ######################################
+        # The call to the optimiser!
+        print("Optimising...")
+        result = scipy.optimize.root(f, undefVarRefVals)
+        #######################################
+        print("All results from root-finding:", result)
+        print("  Numerical result:", str(result.x))
         #print("+++++++++++++++++++++++++")
-        # TODO for the moment just assume the value we get back is definitely the solution!
-        [context.setValue(e[0], e[1]) for e in zip(varList, result[0])]
-        return True
+        if any([np.isnan(x) for x in result.x]):
+            print("Error! Some of the results from numerical solving were NaN - check and resolve (perhaps from a different starting point)")
+            return False
+        elif not result.success:
+            print("An unknown error occurred in root-finding...")
+            return False
+        else:
+            # Record the returned values
+            [context.setValue(e[0], e[1]) for e in zip(masterVarList, result.x)]
+            return True
 
     def __repr__(self):
         return "<Problem: variables " + repr(self.exprs) + ", constraints " + repr(self.constrs) + ">"
