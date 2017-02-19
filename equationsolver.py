@@ -5,6 +5,8 @@ from constraints import *
 from expressions import *
 import scipy.optimize
 import numpy as np
+
+VERBOSE = False
 __author__ = 'David Wyatt'
 
 class Context:
@@ -17,13 +19,13 @@ class Context:
             self.varVals = dict()
 
     def getValue(self, var):
-        if var.name in self.varVals:
-            return self.varVals[var.name]
+        if var.getName() in self.varVals:
+            return self.varVals[var.getName()]
         else:
             return None
 
     def setValue(self, var, value):
-        self.varVals[var.name] = value
+        self.varVals[var.getName()] = value
 
     def extendWithValues(self, additionalVals):
         # Return a copy of this dictionary with the extra values specified in the supplied dictionary
@@ -61,11 +63,15 @@ class Problem:
 
     def addConstr(self, constr):
         self.constrs.add(constr)
-        self.addExprs(*constr.exprs)
+        self.addExprs(*constr.getExprs())
 
     def addConstrs(self, *constrs):
         for constr in constrs:
             self.addConstr(constr)
+
+    def addObj(self, obj):
+        self.addExprs(*obj.variables)
+        self.addConstrs(*obj.constrs)
 
     def solve(self, context=False, refContext=False):
         """
@@ -92,18 +98,18 @@ class Problem:
                 undefVars = constr.getUndefinedExprs(context)
                 if len(undefVars) == 0:
                     # Fully constrained => check it's consistent
-                    #print("Checking full-constrained constraint for consistency:", constr.name)
+                    #print("Checking full-constrained constraint for consistency:", constr.getName())
                     result = constr.propagate(context)
                     if not(result):
                         break
-                    print("Checked \"" + constr.name + "\" and found it to be consistent")
+                    print("Checked \"" + constr.getName() + "\" and found it to be consistent")
                     # Admin
                     tempconstrlist.remove(constr)
                     self.solveseq.append(constr)
                     foundANewConstr = True
                 elif len(undefVars) == 1:
                     # Next easiest case is if only 1 undefined expression
-                    #print("Propagating constraint:", constr.name)
+                    #print("Propagating constraint:", constr.getName())
                     # Actually solve this constraint!
                     result = constr.propagate(context)
                     if not(result):
@@ -111,20 +117,20 @@ class Problem:
                     # Admin
                     tempconstrlist.remove(constr)
                     self.solveseq.append(constr)
-                    print("Solved \"" + constr.name + "\" analytically to give " + str(undefVars[0].name) + " = " + str(context.getValue(undefVars[0])))
+                    print("Solved \"" + constr.getName() + "\" analytically to give " + str(undefVars[0].getName()) + " = " + str(context.getValue(undefVars[0])))
                     foundANewConstr = True
                 elif len(set(undefVars)) == 1: # use set() to remove duplicates
                     undefVarsSet = set(undefVars)
                     # Look out for cases where we have multiple copies of the same variable in a constraint!
-                    #print("Detected a constraint where there are multiple copies of the same variable:", constr.name, constr.getTextFormula(), "(Variable: " + str(undefVars[0].name), ")")
-                    print("Solving \"" + constr.name + "\" numerically due to multiple occurrences of " + undefVars[0].name + "...")
+                    #print("Detected a constraint where there are multiple copies of the same variable:", constr.getName(), constr.getTextFormula(), "(Variable: " + str(undefVars[0].getName()), ")")
+                    print("Solving \"" + constr.getName() + "\" numerically due to multiple occurrences of " + undefVars[0].getName() + "...")
                     result = self.numSolve([constr], context, undefVarsSet, refContext)
                     if not(result):
                         break
                     # Admin
                     tempconstrlist.remove(constr)
                     self.solveseq.append(constr)
-                    print("Solved \"" + constr.name + "\" numerically to give " + str(undefVars[0].name) + " = " + str(context.getValue(undefVars[0])))
+                    print("Solved \"" + constr.getName() + "\" numerically to give " + str(undefVars[0].getName()) + " = " + str(context.getValue(undefVars[0])))
                     foundANewConstr = True
                 else:
                     # Genuinely multiple undefined variables
@@ -133,20 +139,20 @@ class Problem:
                 # End of loop over all constraints
             if foundANewConstr == False:
                 print("No more constraints to solve one-var-at-a-time. " + str(len(tempconstrlist)) + " remaining constraints:")
-                for txt in [constr.name + ": " + constr.getTextFormula() for constr in tempconstrlist]:
+                for txt in [constr.getName() + ": " + constr.getTextFormula() for constr in tempconstrlist]:
                     print(txt)
                 # Now let's try the multi-variate least squares fitting...
                 # Sanity check first - do we have enough variables?
                 numConstrs = len(tempconstrlist)
                 allUndefVars = set([item for constr in tempconstrlist for item in constr.getUndefinedExprs(context)])
-                print(str(len(allUndefVars)) + " remaining undefined variables:", [var.name for var in allUndefVars])
+                print(str(len(allUndefVars)) + " remaining undefined variables:", [var.getName() for var in allUndefVars])
                 if numConstrs >= len(allUndefVars):
                     print("Number of remaining constraints >= number of undefined variables => try solving numerically!")
                     result = self.numSolve(tempconstrlist, context, allUndefVars, refContext)
                     if not(result):
                         print("Error solving remaining constraints numerically - giving up.")
                         return False
-                    print("Solved " + str([constr.name for constr in tempconstrlist]) + " numerically to give " + str([var.name + "=" + str(context.getValue(var)) for var in allUndefVars]))
+                    print("Solved " + str([constr.getName() for constr in tempconstrlist]) + " numerically to give " + str([var.getName() + "=" + str(context.getValue(var)) for var in allUndefVars]))
                     tempconstrlist.clear()
                 else:
                     print("Number of remaining constraints <= number of undefined variables => giving up.")
@@ -180,13 +186,14 @@ class Problem:
             undefVarRefVals = np.array([refContext.getValue(var) for var in masterVarList])
         else:
             undefVarRefVals = np.zeros(len(masterVarList))
-        print("Initial guess for var vals: ", list(zip([v.name for v in masterVarList], undefVarRefVals)))
+        print("  Initial guess for var vals: ", list(zip([v.getName() for v in masterVarList], undefVarRefVals)))
         ######################################
         # The call to the optimiser!
-        print("Optimising...")
+        if VERBOSE: print("Optimising...")
         result = scipy.optimize.root(f, undefVarRefVals)
         #######################################
-        print("All results from root-finding:", result)
+        if VERBOSE:
+            print("All results from root-finding:", result)
         print("  Numerical result:", str(result.x))
         #print("+++++++++++++++++++++++++")
         if any([np.isnan(x) for x in result.x]):
@@ -207,9 +214,9 @@ class Problem:
         print("---Problem structure---")
         print("Problem: " + self.name)
         print("----------Exprs:")
-        for var in self.exprs:
+        for var in sorted(self.exprs, key=lambda var: var.getName().lower()):
             if context and context.getValue(var):
-                print(var.name, ":", str(context.getValue(var)))
+                print(var.getName(), ":", str(context.getValue(var)))
             else:
                 print(repr(var))
         print("----------Constrs:")

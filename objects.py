@@ -7,20 +7,9 @@
 from constraints import EqualityConstraint
 from equationsolver import Problem
 from expressions import ScalarVariable
+from tests import test_objects
+
 __author__ = 'David Wyatt'
-
-class NIObject:
-    def __init__(self, name, niclass):
-        self.niclass = niclass
-        self.name = name
-        self.variables = [var.copy() for var in self.niclass.variables]
-        for constr in self.niclass.constrs:
-            # Need to find the instance variables corresponding to the variables in the class definion
-            pass
-        self.constrs = []
-
-    def __repr__(self):
-        return "<NIObject: name " + self.name + ", class " + repr(self.niclass) + ", variables " + repr(self.variables) + ", constraints " + repr(self.constrs) + ">"
 
 # An NIclass is basically the template for an NIobject - it has a list of variables that each object of that class inherits, and likewise constraints
 class NIClass:
@@ -34,40 +23,71 @@ class NIClass:
         return "<NIClass: name " + self.name + ", variables " + repr(self.variables) + ", constraints " + repr(self.constrs) + ">"
 
 
+class NIObject:
+    def __init__(self, name, niclass):
+        self.niclass = niclass
+        self.name = name
+        self.variables = []
+        [self.addVar(var.copy()) for var in self.niclass.variables]
+        self.varnamesdict = {var.name: var for var in self.variables}
+        self.constrs = []
+        for classconstr in self.niclass.constrs:
+            # Need to copy the class' constraints but replace the class' variables with the corresponding instance variables
+            # First copy the constraint and add to list
+            newconstr = classconstr.copy()
+            self.constrs.append(newconstr)
+            # Override the constraint's getName with a function that prepends this object's name
+            newconstr.getName = lambda: self.getChildObjName(newconstr)
+            # Now iterate through every non-composite expression
+            for (var, varSetFunc) in newconstr.getDescendantVarsAndSetters():
+                # Check if it refers to a class variable
+                if var in self.niclass.variables:
+                    # If so replace it
+                    # Find the corresponding instance variable
+                    varToReplaceWith = self.varnamesdict[var.name]
+                    # And slot this in in place of the class variable...
+                    varSetFunc(varToReplaceWith)
+
+    def addVar(self, var):
+        self.variables.append(var)
+        # Override the variable's getName with a function that prepends this object's name
+        # Let's see if this works...
+        var.getName = lambda: self.getChildObjName(var)
+
+    def getChildObjName(self, childObj):
+        return self.name + "." + childObj.name
+
+    def __repr__(self):
+        return "<NIObject: name " + self.name + ", class " + repr(self.niclass) + ", variables " + repr(self.variables) + ", constraints " + repr(self.constrs) + ">"
+
+    def getVar(self, varname):
+        if varname in self.varnamesdict:
+            return self.varnamesdict[varname]
+        else:
+            return None
+
+
+
 class ObjectTestProblem(Problem):
     def __init__(self):
         super(ObjectTestProblem, self).__init__("Object test problem")
         testVar1 = ScalarVariable("TestVar1", 10)
         testVar2 = ScalarVariable("TestVar2")
+        testConstraint = EqualityConstraint("TestConstraint", testVar1, testVar2)
 
         # Create a class definition as a test
-        testClass = NIClass("Test class", [testVar1, testVar2], [EqualityConstraint("Test constraint", testVar1, testVar2)])
+        testClass = NIClass("Test class", [testVar1, testVar2], [testConstraint])
 
         # Create an object from that class
-        testObj = NIObject("Test object", testClass)
+        testObj = NIObject("TestObj1", testClass)
+        testObj2 = NIObject("TestObj2", testClass)
+        testObj2.getVar("TestVar1").value = 20
 
         print(testObj)
 
-        #testConstr = EqualityConstraint("Test constraint", testVar1, testVar2)
-        #self.addConstr(testConstr)
-
-        # f = ScalarVariable("F")
-        # m = ScalarVariable("m", 68)
-        # a = ScalarVariable("a", 9.81)
-        # self.addConstr(EqualityConstraint("Test constraint 2", f, testVar2))
-        # #n2law = ProductConstraint("Newton's 2nd law", f, m, a)
-        # self.addConstr(EqualityConstraint("Newton's 2nd law", f, ProductExpression(m, a)))
-        #
-        # ph = ScalarVariable("pH", 7)
-        # concHp = ScalarVariable("[H+]")
-        # self.addConstr(EqualityConstraint("pH definition", concHp, PowerExpression(FixedValue(10), ProductExpression(FixedValue(-1), ph))))
-
+        self.addObj(testObj)
+        self.addObj(testObj2)
 
 
 if __name__ == "__main__":
-    testprob = ObjectTestProblem()
-
-    print(testprob)
-    testprob.solve()
-
-    #testprob.draw("problem_structure.png")
+    test_objects()

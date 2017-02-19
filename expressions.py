@@ -3,6 +3,8 @@ from abc import ABCMeta
 from functools import total_ordering
 import math
 
+from NIbase import addDescVarOrRecurse
+
 __author__ = 'David'
 
 @total_ordering
@@ -11,14 +13,17 @@ class Expression(metaclass=ABCMeta):
         self.name = name
         self.childExprs = childexprs
 
+    def getName(self):
+        return self.name
+
     def __eq__(self, other):
-        return self.name == other.name
+        return self.getName() == other.getName()
 
     def __lt__(self, other):
-        return self.name < other.name
+        return self.getName() < other.getName()
 
     def __hash__(self):
-        return hash(self.name)
+        return hash(self.getName())
 
     def getChildren(self):
         return self.childExprs
@@ -43,23 +48,13 @@ class Expression(metaclass=ABCMeta):
     def getUndefinedExprs(self, context):
         pass
 
-
-# A slight shortcut for when you really need a hard-coded value!
-class FixedValue(Expression):
-    def __init__(self, value):
-        super(FixedValue, self).__init__(str(value))
+class Variable(Expression):
+    def __init__(self, name, value):
+        super(Variable, self).__init__(name)
         self.value = value
-
-    def __repr__(self):
-        return "<FixedValue: " + self.name + ">"
 
     def getValue(self, context):
         return self.value
-
-    def setValue(self, value, context):
-        #self.value = value
-        pass
-        # TODO Throw an error at this point?
 
     def isComposite(self):
         return False
@@ -68,13 +63,12 @@ class FixedValue(Expression):
         return []
 
 # A standard scalar variable
-class ScalarVariable(Expression):
+class ScalarVariable(Variable):
     def __init__(self, name, value=None):
-        super(ScalarVariable, self).__init__(name)
-        self.value = value
+        super(ScalarVariable, self).__init__(name, value)
 
     def __repr__(self):
-        return "<ScalarVariable: name " + self.name + ", value " + str(self.value) + ">"
+        return "<ScalarVariable: name " + self.getName() + ", value " + str(self.value) + ">"
 
     def getValue(self, context):
         if context:
@@ -86,9 +80,6 @@ class ScalarVariable(Expression):
         #self.value = value
         context.setValue(self, value)
 
-    def isComposite(self):
-        return False
-
     def getUndefinedExprs(self, context):
         return [] if self.getValue(context) else [self]
 
@@ -96,27 +87,28 @@ class ScalarVariable(Expression):
         return ScalarVariable(name=self.name, value=self.value)
 
 # A constant - something with a name and a fixed numerical value that cannot change
-class Constant(Expression):
-    def __init__(self, name, value):
-        super(Constant, self).__init__(name)
-        self.value = value
-
+class Constant(Variable):
     def __repr__(self):
         return "<Constant: name " + self.name + ", value " + str(self.value) + ">"
-
-    def getValue(self, context):
-        return self.value
 
     def setValue(self, value, context):
         #self.value = value
         pass
         # TODO Throw an error at this point?
 
-    def isComposite(self):
-        return False
+# A slight shortcut for when you really need a hard-coded value!
+class FixedValue(Variable):
+    def __init__(self, value):
+        super(FixedValue, self).__init__(str(value), value)
 
-    def getUndefinedExprs(self, context):
-        return []
+    def __repr__(self):
+        return "<FixedValue: " + self.name + ">"
+
+    def setValue(self, value, context):
+        #self.value = value
+        pass
+        # TODO Throw an error at this point?
+
 ###################################################################################
 # Composite expressions
 
@@ -137,11 +129,24 @@ class CompositeExpression(Expression):
 # Unary (1 argument)
 class UnaryExpression(CompositeExpression):
     def __init__(self, arg):
-        self.arg = arg
+        self.setArg(arg)
         super(UnaryExpression, self).__init__(self.getTextFormula(), [self.arg])
 
     def getTextFormula(self):
         return self.operatorTxt + "(" + self.arg.name + ")"
+
+    def setArg(self, expr):
+        self.arg = expr
+
+    def getDescendantVarsAndSetters(self):
+        """
+        Recursively extract the non-composite expressions in this problem
+        I.e. actual variables (either fixed values or truly variable)
+        :return: a list of tuples of (variable, 1-argument method that can be called to replace the variable)
+        """
+        returnVal = []
+        addDescVarOrRecurse(returnVal, self.arg, self.setArg)
+        return returnVal
 
 class SinExpression(UnaryExpression):
     def __init__(self, arg):
@@ -230,12 +235,29 @@ class TanExpression(UnaryExpression):
 # Binary (2 arguments)
 class BinaryExpression(CompositeExpression):
     def __init__(self, argA, argB):
-        self.argA = argA
-        self.argB = argB
+        self.setArgA(argA)
+        self.setArgB(argB)
         super(BinaryExpression, self).__init__(self.getTextFormula(), [self.argA, self.argB])
+
+    def setArgA(self, expr):
+        self.argA = expr
+
+    def setArgB(self, expr):
+        self.argB = expr
 
     def getTextFormula(self):
         return "(" + self.argA.name + " " + self.operatorSymbol + " " + self.argB.name + ")"
+
+    def getDescendantVarsAndSetters(self):
+        """
+        Recursively extract the non-composite expressions in this problem
+        I.e. actual variables (either fixed values or truly variable)
+        :return: a list of tuples of (variable, 1-argument method that can be called to replace the variable)
+        """
+        returnVal = []
+        addDescVarOrRecurse(returnVal, self.argA, self.setArgA)
+        addDescVarOrRecurse(returnVal, self.argB, self.setArgB)
+        return returnVal
 
 class SumExpression(BinaryExpression):
     def __init__(self, addandA, addandB):

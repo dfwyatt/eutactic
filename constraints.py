@@ -1,15 +1,15 @@
-__author__ = 'David Wyatt'
-
+from NIbase import addDescVarOrRecurse
 from abc import abstractmethod
 from abc import ABCMeta
 import math
 import numpy as np
 
+__author__ = 'David Wyatt'
+
+
 class Constraint(metaclass=ABCMeta):
     def __init__(self, name, *exprs):
         self.name = name
-        self.exprs = []
-        self.exprs.extend(exprs)
 
     @abstractmethod
     def propagate(self, context):
@@ -20,16 +20,27 @@ class Constraint(metaclass=ABCMeta):
         pass
 
     def numExprs(self):
-        return len(self.exprs)
+        return len(self.getExprs())
+
+    def getName(self):
+        return self.name
 
     def getUndefinedExprs(self, context):
         exprlist = []
-        for childexpr in self.exprs:
+        for childexpr in self.getExprs():
             exprlist.extend(childexpr.getUndefinedExprs(context))
         return exprlist
 
     def numUndefinedExprs(self, context):
         return len(self.getUndefinedExprs(context))
+
+    @abstractmethod
+    def copy(self):
+        pass
+
+    @abstractmethod
+    def getExprs(self):
+        pass
 
 
 class EqualityConstraint(Constraint):
@@ -59,11 +70,37 @@ class EqualityConstraint(Constraint):
         return True
 
     def __repr__(self):
-        return "<EqualityConstraint: lhs " + repr(self.lhs) + ", rhs " + repr(self.rhs) + ">"
+        return "<EqualityConstraint " + self.getName() + ": lhs " + repr(self.lhs) + ", rhs " + repr(self.rhs) + ">"
 
     def getTextFormula(self):
-        return self.lhs.name + " = " + self.rhs.name
+        return self.lhs.getName() + " = " + self.rhs.getName()
 
+    def copy(self):
+        returnval = EqualityConstraint(self.name, self.lhs.copy(), self.rhs.copy())
+        return returnval
+
+    def setLhs(self, expr):
+        self.lhs = expr
+
+    def setRhs(self, expr):
+        self.rhs = expr
+
+    def getDescendantVarsAndSetters(self):
+        """
+        Recursively extract the non-composite expressions in this problem
+        I.e. actual variables (either fixed values or truly variable)
+        :return: a list of tuples of (variable, 1-argument method that can be called to replace the variable)
+        """
+        returnVal = []
+        addDescVarOrRecurse(returnVal, self.lhs, self.setLhs)
+        addDescVarOrRecurse(returnVal, self.rhs, self.setRhs)
+        return returnVal
+
+    def getExprs(self):
+        return [self.lhs, self.rhs]
+
+##############################################################################
+# Definitions below here are left over from a previous approach and are not guaranteed to work!
 
 class SumConstraint(Constraint):
     def __init__(self, name, lhs, addenda, addendb):

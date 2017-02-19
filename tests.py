@@ -1,16 +1,28 @@
+from objects import ObjectTestProblem
 from parsedproblem import ParsedProblem
 
+def divider(item):
+    print("*" * 10 + str(item) + "*" * 40)
+
+###############################################################
+# Tests
 
 def test_orbits_numerical():
+    """
+    Test the ability to start solving a problem from a previous solution
+    :return:
+    """
+    divider("Loading problem")
     # Get the problem
     p = ParsedProblem("examples/orbits.prob")
     # Get the default variable settings
+    divider("Default variable settings")
     solveContext = p.defaultContext.copy()
-    divider(1)
     p.print(solveContext)
+    divider("Solving with default var vals")
     # Solve with the default var vals and print the results
     p.solve(context=solveContext, refContext=False)
-    divider(2)
+    divider("Solutions")
     p.print(solveContext)
     # Store the old var vals and reset the solve context
     oldContext = solveContext
@@ -23,17 +35,19 @@ def test_orbits_numerical():
     # Set the values
     r_m.setValue(None, solveContext)
     period_day.setValue(2, solveContext)
-    divider(3)
+    divider("New re-set var vals")
     p.print(solveContext)
 
-    divider(4)
+    divider("Solving with new var vals")
     p.solve(context=solveContext, refContext=oldContext)
+    divider("Solutions")
+    p.print(solveContext)
+    divider("End")
 
-
-
-def divider(item):
-    print(str(item) + "*" * 40)
-
+def test_objects():
+    testprob = ObjectTestProblem()
+    print(testprob)
+    testprob.solve()
 
 if __name__ == '__main__':
-    test_orbits_numerical()
+    test_objects()

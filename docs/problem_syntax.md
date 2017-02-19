@@ -60,3 +60,27 @@ Two symbolic constants are built into the language: `pi` and `e`.
 The contents of another .prob file may be imported into the current file using `import`:
 
 `import("constants.prob")`
+
+## Objects
+
+**N.B. Object-oriented features are currently a work-in-progress - functionality may not be complete and may not exist at all!**
+
+Objects are reusable groups of equations, which can be used to represent the same behaviour occurring in different situations. For instance, if a problem includes two masses each subject to a force, the non-object-oriented way to do this would be:
+
+`F = m * a
+F2 = m2 * a2 # Have to give the parameters in the second equation a different name from the first
+m := 10
+m2 := 20
+# Define the forces F, F2 and/or accelerations a, a2...`
+
+Alternatively, the same problem could be defined using objects without duplicating the equation:
+`class Mass {
+    F = m * a
+}
+Mass mass1(m = 10)
+Mass mass2(m = 20)
+# Access mass1.F, mass2.a from other equations
+`
+More formally:
+* Define a class (a template for an object) using `class [object name]`, then a list of equations enclosed in braces (`{` and `}`)
+* Instantiate an object using the class name and a new name for the object (restrictions as variable
