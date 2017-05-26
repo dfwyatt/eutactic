@@ -7,7 +7,6 @@
 from constraints import EqualityConstraint
 from equationsolver import Problem
 from expressions import ScalarVariable
-from tests import test_objects
 
 __author__ = 'David Wyatt'
 
@@ -66,28 +65,3 @@ class NIObject:
         else:
             return None
 
-
-
-class ObjectTestProblem(Problem):
-    def __init__(self):
-        super(ObjectTestProblem, self).__init__("Object test problem")
-        testVar1 = ScalarVariable("TestVar1", 10)
-        testVar2 = ScalarVariable("TestVar2")
-        testConstraint = EqualityConstraint("TestConstraint", testVar1, testVar2)
-
-        # Create a class definition as a test
-        testClass = NIClass("Test class", [testVar1, testVar2], [testConstraint])
-
-        # Create an object from that class
-        testObj = NIObject("TestObj1", testClass)
-        testObj2 = NIObject("TestObj2", testClass)
-        testObj2.getVar("TestVar1").value = 20
-
-        print(testObj)
-
-        self.addObj(testObj)
-        self.addObj(testObj2)
-
-
-if __name__ == "__main__":
-    test_objects()

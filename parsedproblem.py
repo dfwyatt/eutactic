@@ -1,5 +1,7 @@
 import math
 #from numpy.dual import solve
+from pyparsing import ParseException
+
 from constraints import EqualityConstraint
 from equationsolver import Problem, Context
 from pyparsing import Word, alphas, nums, Literal, CaselessLiteral, Optional, Combine, ZeroOrMore, Group, Forward, \
@@ -14,7 +16,9 @@ __author__ = 'David Wyatt'
 # An attempt to use pyparsing to parse a problem out of a text file
 
 
-testfilename = "examples/test.prob"
+#testfilename = "examples/test.prob"
+testfilename = "examples/test2.prob"
+#testfilename = "C:/Users/David/Desktop/wrong.prob"
 # Parser definition
 # From http://eikke.com/pyparsing-introduction-bnf-to-code/6/index.html
 # And pyparsing's fourfn
@@ -30,7 +34,7 @@ assign = Literal(':=').suppress()
 constassign = Literal('==').suppress()
 signedDigitString = Word("+-" + nums, nums)
 fNumber = Combine(signedDigitString + Optional(point + Optional(Word(nums))) + Optional(e + signedDigitString))
-varName = Word( alphas+"_", alphanums+"_" )
+varName = Word(alphas+"_", alphanums+"_")
 equationName = QuotedString(quoteChar="\"")
 # What word to use to include another file's contents?
 # http://en.wikipedia.org/wiki/Comparison_of_programming_languages_%28syntax%29#Libraries
@@ -91,7 +95,7 @@ constraint = Group(expr) + equals + Group(expr) + Optional(equationName)
 varinit = varName + assign + Group(expr)
 # Constant definition is like varinit but with a "=="
 constantdef = varName + constassign + Group(expr)
-# Import command is import(filename) TODO
+# Import command is import(filename)
 importfilename = QuotedString(quoteChar="\"")
 importcommand = importkeyword + lPar + importfilename + rPar
 
@@ -119,8 +123,11 @@ class ParsedProblem(Problem):
             i = 1
             for line in file.readlines():
                 # print("Trying to parse:",line)
-                parsedLine = lineParser.parseString(line)
-                # print(parsedLine)
+                try:
+                    parsedLine = lineParser.parseString(line)
+                except ParseException as x:
+                    print("Parse error at line", str(i), ":", str(x))
+                    print("Original line:", line)
                 if parsedLine.constraint:
                     # Equality constraint definition
                     # Now we need to turn these into expressions...

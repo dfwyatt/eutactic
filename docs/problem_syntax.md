@@ -77,10 +77,11 @@ Alternatively, the same problem could be defined using objects without duplicati
 `class Mass {
     F = m * a
 }
-Mass mass1(m = 10)
-Mass mass2(m = 20)
+Mass mass1(m := 10)
+Mass mass2(m := 20)
 # Access mass1.F, mass2.a from other equations
 `
 More formally:
 * Define a class (a template for an object) using `class [object name]`, then a list of equations enclosed in braces (`{` and `}`)
-* Instantiate an object using the class name and a new name for the object (restrictions as variable
+* Instantiate an object using the class name and a new name for the object (with the same restrictions as variable names). Optionally, assign values to variables in brackets after the instantiation.
+* Access/refer to an object's variables using `[object name].[variable name]`
