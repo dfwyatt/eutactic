@@ -14,7 +14,8 @@ import inspect
 __author__ = 'David Wyatt'
 
 # An attempt to use pyparsing to parse a problem out of a text file
-
+# NOTE: Committed as a working version 2017_05_26 - any changes can be entirely reverted!
+# TODO: Overall ongoing task: change this from a line-at-a-time parser to a file-at-a-time parser in order to support objects
 
 #testfilename = "examples/test.prob"
 testfilename = "examples/test2.prob"
@@ -34,7 +35,7 @@ assign = Literal(':=').suppress()
 constassign = Literal('==').suppress()
 signedDigitString = Word("+-" + nums, nums)
 fNumber = Combine(signedDigitString + Optional(point + Optional(Word(nums))) + Optional(e + signedDigitString))
-varName = Word(alphas+"_", alphanums+"_")
+symbolName = Word(alphas + "_", alphanums + "_")
 equationName = QuotedString(quoteChar="\"")
 # What word to use to include another file's contents?
 # http://en.wikipedia.org/wiki/Comparison_of_programming_languages_%28syntax%29#Libraries
@@ -59,14 +60,15 @@ constant.setParseAction(lambda s, l, t: [constantMap[t[0]]])
 fNumber.setParseAction(lambda s, l, t: [float(t[0])])
 
 # Binary operators
-binaryOperator = Word('+-*/^', exact=1) # N.B. To-the-power-of is ^ in this grammar at the moment - TODO make it accept Python syntax **
+binaryOperator = Literal('**') | Word('+-*/^', exact=1) # N.B. To-the-power-of can be ^ or ** - the double-star version has to come first in the pattern...
 # Define mapping from binary operator symbols to composite expression classes
 binaryOperatorMap = {
-    '+': SumExpression,
-    '-': DifferenceExpression,
-    '*': ProductExpression,
-    '/': QuotientExpression,
-    '^': PowerExpression
+    '+':  SumExpression,
+    '-':  DifferenceExpression,
+    '*':  ProductExpression,
+    '/':  QuotientExpression,
+    '^':  PowerExpression,
+    '**': PowerExpression
 }
 # Now make binary operators get turned into classes straight away
 binaryOperator.setParseAction(lambda s, l, t: [binaryOperatorMap[t[0]]])
@@ -86,25 +88,36 @@ comment = '#' + restOfLine
 # Now, main structure of expression-parser
 expr = Forward()
 # atom is a number, variable, parenthesised expression or unary operator
-atom = constant | fNumber | Group(lPar + expr + rPar) | Group(unaryOperator + lPar + Group(expr) + rPar) | varName
+atom = constant | fNumber | Group(lPar + expr + rPar) | Group(unaryOperator + lPar + Group(expr) + rPar) | symbolName
 # Expr is an atom plus a succession of binary operators and expressions
 expr << atom + ZeroOrMore(binaryOperator + Group(expr))
 # Constraint is two expressions separated by an equals, possibly with an equation name at the end
 constraint = Group(expr) + equals + Group(expr) + Optional(equationName)
 # Variable initialisation is a variable name with ":=" and an expression
-varinit = varName + assign + Group(expr)
+varinit = symbolName + assign + Group(expr)
 # Constant definition is like varinit but with a "=="
-constantdef = varName + constassign + Group(expr)
+constantdef = symbolName + constassign + Group(expr)
+
+# General term for numerical chunks
+numericalStatement = Or(constraint("constraint") | varinit("varinit") | constantdef("constdef"))
+
 # Import command is import(filename)
 importfilename = QuotedString(quoteChar="\"")
 importcommand = importkeyword + lPar + importfilename + rPar
 
+# Object infrastructure
+#classkeyword = Keyword("class").suppress()
+#lBrace = Literal('{').suppress()
+#rBrace = Literal('}').suppress()
+# Main definition of a class
+#classDef = classkeyword + symbolName + lBrace + ZeroOrMore(numericalStatement) + rBrace
+
 # Master line parser - optional to allow for blank lines
-lineParser = Optional(constraint("constraint") | varinit("varinit") | constantdef("constdef") | importcommand("importcommand"))
+lineParser = Optional(numericalStatement | importcommand("importcommand"))
 lineParser.ignore(comment)
 
 class ParsedProblem(Problem):
-    def __init__(self, filename):
+    def __init__(self, filename, verbose = False):
         super(ParsedProblem, self).__init__("Problem from file: " + os.path.abspath(filename))
         #os.chdir(os.path.dirname(os.path.abspath(__file__)))
         #sname=inspect.getframeinfo(inspect.currentframe()).filename
@@ -112,17 +125,18 @@ class ParsedProblem(Problem):
         #spath=inspect.getabsfile()
         #print("Changing path to ", spath)
         #os.chdir(spath)
-        self.parse_file(filename, set())
+        self.parse_file(filename, set(), verbose=verbose)
         self.print()
 
-    def parse_file(self, filename, previous_files):
+    def parse_file(self, filename, previous_files, verbose=False):
         print("------------------------------------------")
         print("Parsing", filename)
         previous_files.add(filename)
         with open(filename, 'r') as file:
             i = 1
             for line in file.readlines():
-                # print("Trying to parse:",line)
+                if (verbose):
+                    print("Trying to parse:",line)
                 try:
                     parsedLine = lineParser.parseString(line)
                 except ParseException as x:
@@ -158,7 +172,7 @@ class ParsedProblem(Problem):
                     # Regardless, add the variable to the problem (in case it's new)
                     self.addExpression(var)
                 elif parsedLine.constdef:
-                    # TODO Constant initialisation line
+                    # Constant initialisation line
                     constant_name = parsedLine[0]
                     # Parse the expression on the RHS
                     value_expr = self.parseExpr(parsedLine[1])
@@ -227,7 +241,6 @@ class ParsedProblem(Problem):
         elif isinstance(exprS, ParseResults):
             # It's another chunk of parsing!
             # Now it depends on the length
-            # Hopefully the length of this will be either 1 or 3
             # If it's 1 it's a variable or number
             # So just recurse
             if len(exprS) == 1:

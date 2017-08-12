@@ -5,3 +5,5 @@ EMF := 9
 R_int := 1
 R_ext := 8 # this shouldn't cause a problem
 # Nor should this
+
+x = 2 ** 10

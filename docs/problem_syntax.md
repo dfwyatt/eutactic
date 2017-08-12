@@ -32,7 +32,7 @@ expt_two = e + pi "Constant test"
 
 Currently supported mathematical operators are:
 * `+`, `-`, `*`, `/`
-* `^` for to-the-power-of
+* `^` or `**` for to-the-power-of
 * `sin`, `cos`, `tan`
 
 More will be implemented in the future!

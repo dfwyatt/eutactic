@@ -1,0 +1,11 @@
+class Mass {
+    F = m * a
+}
+Mass mass1(m := 10)
+Mass mass2(m := 20)
+a == 1
+mass1.a = a
+mass2.a = a
+# Should calculate mass1.F, mass2.F
+
+# Access mass1.F, mass2.a from other equations

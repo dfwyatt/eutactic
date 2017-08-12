@@ -70,5 +70,21 @@ def test_objects():
     print(testprob)
     testprob.solve()
 
+def test_parsed_objects():
+    divider("Loading problem")
+    # Get the problem
+    testprob = ParsedProblem("examples/test_objects.prob")
+    print(testprob)
+    testprob.solve()
+
+def test_general_parsing():
+    divider("Loading problem")
+    # Get the problem
+    testprob = ParsedProblem("examples/test2.prob")
+    print(testprob)
+    testprob.solve()
+
 if __name__ == '__main__':
-    test_objects()
+    #test_objects()
+    #test_parsed_objects()
+    test_general_parsing()
