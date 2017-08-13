@@ -1,6 +1,6 @@
 import math
 #from numpy.dual import solve
-from pyparsing import ParseException
+from pyparsing import ParseException, Suppress, LineEnd, LineStart
 
 from constraints import EqualityConstraint
 from equationsolver import Problem, Context
@@ -14,11 +14,11 @@ import inspect
 __author__ = 'David Wyatt'
 
 # An attempt to use pyparsing to parse a problem out of a text file
-# NOTE: Committed as a working version 2017_05_26 - any changes can be entirely reverted!
 # TODO: Overall ongoing task: change this from a line-at-a-time parser to a file-at-a-time parser in order to support objects
 
 #testfilename = "examples/test.prob"
-testfilename = "examples/test2.prob"
+#testfilename = "examples/test2.prob"
+testfilename = "examples/test2fragments.prob"
 #testfilename = "C:/Users/David/Desktop/wrong.prob"
 # Parser definition
 # From http://eikke.com/pyparsing-introduction-bnf-to-code/6/index.html
@@ -83,7 +83,10 @@ unaryOperator = Or([CaselessKeyword(funcname) for funcname in unaryOperatorMap])
 unaryOperator.setParseAction(lambda s, l, t: [unaryOperatorMap[t[0]]])
 
 # Comments
-comment = '#' + restOfLine
+commentChar = Literal('#')
+comment = commentChar + restOfLine
+# Umbrella for everything we might have at the end of a line
+terminusOfLine = Suppress(LineEnd() | comment)
 
 # Now, main structure of expression-parser
 expr = Forward()
@@ -99,11 +102,14 @@ varinit = symbolName + assign + Group(expr)
 constantdef = symbolName + constassign + Group(expr)
 
 # General term for numerical chunks
-numericalStatement = Or(constraint("constraint") | varinit("varinit") | constantdef("constdef"))
+numericalStatement = LineStart() + (constraint("constraint") | varinit("varinit") | constantdef("constdef")) + terminusOfLine
 
 # Import command is import(filename)
 importfilename = QuotedString(quoteChar="\"")
-importcommand = importkeyword + lPar + importfilename + rPar
+importcommand = LineStart() + importkeyword + lPar + importfilename + rPar + terminusOfLine
+
+# Blank line! Or comment-only
+blankLine = LineStart() + terminusOfLine
 
 # Object infrastructure
 #classkeyword = Keyword("class").suppress()
@@ -112,9 +118,11 @@ importcommand = importkeyword + lPar + importfilename + rPar
 # Main definition of a class
 #classDef = classkeyword + symbolName + lBrace + ZeroOrMore(numericalStatement) + rBrace
 
-# Master line parser - optional to allow for blank lines
-lineParser = Optional(numericalStatement | importcommand("importcommand"))
-lineParser.ignore(comment)
+# Master block parser - optional to allow for blank lines
+blockParser = Group(numericalStatement | importcommand("importcommand")) | Suppress(blankLine)
+# TODO as of 2017_08_12: parsing stops at a blank line...
+# And finally the master *file* parser!
+fileParser = ZeroOrMore(blockParser)
 
 class ParsedProblem(Problem):
     def __init__(self, filename, verbose = False):
@@ -133,20 +141,26 @@ class ParsedProblem(Problem):
         print("Parsing", filename)
         previous_files.add(filename)
         with open(filename, 'r') as file:
-            i = 1
-            for line in file.readlines():
-                if (verbose):
-                    print("Trying to parse:",line)
-                try:
-                    parsedLine = lineParser.parseString(line)
-                except ParseException as x:
-                    print("Parse error at line", str(i), ":", str(x))
-                    print("Original line:", line)
+            i = -999 # TODO Need to work out how to do line numbering in this setting...
+            #for line in file.readlines():
+            fileContents = file.read()
+            if (verbose):
+                print("Trying to parse:\n" + fileContents)
+            try:
+                fileParseResults = fileParser.parseString(fileContents)
+            except ParseException as x:
+                print("Parse error at line", str(x.lineno), ":", str(x))
+                print("Original line:", x.line)
+            if (verbose):
+                print("Finished the parsing - results:")
+                print(fileParseResults)
+                print("Now to translation...")
+            for parsedLine in fileParseResults:
                 if parsedLine.constraint:
                     # Equality constraint definition
                     # Now we need to turn these into expressions...
-                    lhs = self.parseExpr(parsedLine[0])
-                    rhs = self.parseExpr(parsedLine[1])
+                    lhs = self.translateExpr(parsedLine[0])
+                    rhs = self.translateExpr(parsedLine[1])
 
                     if len(parsedLine) == 2:
                         constr = EqualityConstraint("Line " + str(i), lhs, rhs)
@@ -159,8 +173,8 @@ class ParsedProblem(Problem):
                     # Variable initialisation line
                     # Find the variable (or make one if it doesn't exist already)
                     var = self.findVar(parsedLine[0])
-                    # Parse the expression on the RHS
-                    value_expr = self.parseExpr(parsedLine[1])
+                    # Translate the expression on the RHS into Eutactic structures
+                    value_expr = self.translateExpr(parsedLine[1])
                     # See if we can get the value from a None context!
                     testval = value_expr.getValue(None)
                     # If we didn't get a None value returned:
@@ -175,7 +189,7 @@ class ParsedProblem(Problem):
                     # Constant initialisation line
                     constant_name = parsedLine[0]
                     # Parse the expression on the RHS
-                    value_expr = self.parseExpr(parsedLine[1])
+                    value_expr = self.translateExpr(parsedLine[1])
                     # See if we can get the value from a None context!
                     testval = value_expr.getValue(None)
                     # If we didn't get a None value returned:
@@ -204,8 +218,6 @@ class ParsedProblem(Problem):
                  
                     
 
-                # Finally increment line counter
-                i += 1
 
     # Find the variable matching a string of its name
     def findVar(self, varName):
@@ -223,7 +235,7 @@ class ParsedProblem(Problem):
             print("Current exprs: " + self.exprs)
             return None
 
-    def parseExpr(self, exprS):
+    def translateExpr(self, exprS):
         #print("Parsing", exprS)
         # Roots of recursion:
         # If it's a number, return a FixedValue
@@ -244,15 +256,15 @@ class ParsedProblem(Problem):
             # If it's 1 it's a variable or number
             # So just recurse
             if len(exprS) == 1:
-                return self.parseExpr(exprS[0])
+                return self.translateExpr(exprS[0])
             # If it's 2 it's a unary expression
             elif len(exprS) == 2:
-                op = self.parseExpr(exprS[1])
+                op = self.translateExpr(exprS[1])
                 return exprS[0](op)
             # If it's 3 it's a binary expression
             elif len(exprS) == 3:
-                op1 = self.parseExpr(exprS[0])
-                op2 = self.parseExpr(exprS[2])
+                op1 = self.translateExpr(exprS[0])
+                op2 = self.translateExpr(exprS[2])
                 return exprS[1](op1, op2)
             else:
                 # Should never get here!
@@ -262,7 +274,7 @@ class ParsedProblem(Problem):
             print("Error parsing expression:", exprS)
 
 if __name__ == '__main__':
-    p = ParsedProblem(testfilename)
+    p = ParsedProblem(testfilename, verbose=True)
     #print(p)
     p.print()
     solveContext = p.defaultContext.copy()
